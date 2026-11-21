@@ -2,6 +2,10 @@ package com.asylum.game;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.media.AudioManager;
@@ -15,6 +19,7 @@ import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.JsPromptResult;
 import android.webkit.JsResult;
 import android.webkit.RenderProcessGoneDetail;
@@ -58,7 +63,8 @@ public class MainActivity extends Activity {
     /** زر الرجوع: يقفل لوحة الأونلاين/الإعدادات لو مفتوحة، وإلا يوقّف اللعبة. */
     private static final String BACK_JS =
             "(function(){try{"
-                    + "var o=document.getElementById('ponl'),p=document.getElementById('pset');"
+                    + "var o=document.getElementById('ponl'),p=document.getElementById('pset'),f=document.getElementById('pfr');"
+                    + "if(f&&f.style.display==='flex'){document.getElementById('fbk').click();return 'closed'}"
                     + "if(o&&o.style.display==='flex'){document.getElementById('obk').click();return 'closed'}"
                     + "if(p&&p.style.display==='flex'){document.getElementById('sbk').click();return 'closed'}"
                     + "if(typeof state!=='undefined'&&state==='play'&&typeof pauseGame==='function'){pauseGame();return 'paused'}"
@@ -92,8 +98,6 @@ public class MainActivity extends Activity {
         web.setBackgroundColor(Color.BLACK);
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         web.setHapticFeedbackEnabled(false);
-        web.setLongClickable(false);
-        web.setOnLongClickListener(v -> true);
         web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG);
 
@@ -109,6 +113,7 @@ public class MainActivity extends Activity {
         s.setDisplayZoomControls(false);
         s.setTextZoom(100);
 
+        web.addJavascriptInterface(new Bridge(), "AndroidApp");
         web.setWebViewClient(new GameClient());
         web.setWebChromeClient(new GameChrome());
 
@@ -166,6 +171,43 @@ public class MainActivity extends Activity {
             Toast.makeText(MainActivity.this, R.string.render_gone, Toast.LENGTH_LONG).show();
             runOnUiThread(MainActivity.this::recreate);
             return true;
+        }
+    }
+
+    /** جسر بين اللعبة والأندرويد: مشاركة/نسخ/لصق كود دعوة الصديق. */
+    private class Bridge {
+        @JavascriptInterface
+        public void share(final String text) {
+            runOnUiThread(() -> {
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain");
+                i.putExtra(Intent.EXTRA_TEXT, text);
+                startActivity(Intent.createChooser(i, getString(R.string.share_title)));
+            });
+        }
+
+        @JavascriptInterface
+        public void copy(final String text) {
+            runOnUiThread(() -> {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("invite", text));
+            });
+        }
+
+        @JavascriptInterface
+        public String paste() {
+            try {
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null && cm.hasPrimaryClip()) {
+                    ClipData d = cm.getPrimaryClip();
+                    if (d != null && d.getItemCount() > 0) {
+                        CharSequence t = d.getItemAt(0).coerceToText(MainActivity.this);
+                        return t == null ? "" : t.toString();
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            return "";
         }
     }
 

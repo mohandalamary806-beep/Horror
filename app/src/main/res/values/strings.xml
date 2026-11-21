@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">البيت</string>
+    <string name="press_back_again">اضغط رجوع تاني للخروج</string>
+    <string name="render_gone">حصلت مشكلة في العرض — بنعيد تشغيل اللعبة</string>
+</resources>

@@ -1,0 +1,64 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Bundle three.js for offline play
+        run: |
+          mkdir -p app/src/main/assets/libs
+          curl -fsSL --retry 3 -o app/src/main/assets/libs/three.min.js \
+            "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" \
+            || echo "::warning::three.js download failed - the app will load it from the CDN instead"
+          curl -fsSL --retry 3 -o app/src/main/assets/libs/GLTFLoader.js \
+            "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js" \
+            || echo "::warning::GLTFLoader download failed - the app will load it from the CDN instead"
+          # امسح أي ملف فاضي/ناقص عشان التطبيق يرجع للـ CDN بدله
+          find app/src/main/assets/libs -type f -size -10k -delete
+          ls -la app/src/main/assets/libs
+
+      - name: Accept Android licenses and install SDK 34
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" || true
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk asylum-game.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: asylum-game-apk
+          path: asylum-game.apk
+
+      - name: Attach APK to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: asylum-game.apk

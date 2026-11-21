@@ -1,0 +1,8 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+node_modules/
+# بتتنزل أوتوماتيك وقت البناء على GitHub
+app/src/main/assets/libs/
